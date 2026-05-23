@@ -37,14 +37,57 @@ function quantize(px: number): number {
   return Math.max(BUCKET_PX, Math.ceil(px / BUCKET_PX) * BUCKET_PX);
 }
 
+// Per-URL high-water mark of the (w, h) bucket ever requested for that URL.
+// We never downsize: once an image has been loaded at bucket N, asking for
+// a smaller bucket on the same URL is wasted bandwidth (cached source is
+// already sufficient) AND puts the <img> into "loading" state for ~3 frames
+// while the smaller request completes — the user sees the cell flash blank.
+// During a continuous resize drag, cells cross multiple bucket boundaries;
+// without the high-water mark a 1400→700 viewport drag fires 1–3 src
+// changes per visible cell (verified empirically), so the user sees a
+// stream of flicker frames across the feed. With the mark, the same drag
+// fires zero src changes on the shrink direction. Grow direction still
+// re-fetches when the cell legitimately needs more pixels — one-shot per
+// item, not a drag-stream.
+//
+// Comparison is on width only. Width and height are correlated because the
+// item's aspect ratio is fixed (a Picsum URL identifies a specific image at
+// a specific AR; cell dimensions are `aspectRatio * rowHeight` × `rowHeight`,
+// so as one shrinks the other shrinks proportionally). One axis is enough
+// to detect "cell got smaller" — the other axis would always agree.
+//
+// Module-scope is a deliberate exception to the "lib/ is pure" convention
+// (see CLAUDE.md §3). The cache has tab lifetime — same as the browser's
+// HTTP cache, which is the right scope for what this is. No React state is
+// needed because no one needs to *react* to changes in this map; it's a
+// memo, read-on-call. ≤2000 entries (one per dataset item), CSR-only so no
+// SSR concern. If the app grew to multiple independent feeds we'd lift to
+// a React context; for a single feed the module scope keeps MediaItem's
+// call site a one-liner and the caller can't tell sticky-max is in play.
+const maxBucketBySrc = new Map<string, { w: number; h: number }>();
+
 export function sizedMediaUrl(
   url: string,
   cellWidthCss: number,
   cellHeightCss: number,
   dpr: number,
 ): string {
-  const w = quantize(cellWidthCss * dpr);
-  const h = quantize(cellHeightCss * dpr);
+  const wDesired = quantize(cellWidthCss * dpr);
+  const hDesired = quantize(cellHeightCss * dpr);
+
+  const prev = maxBucketBySrc.get(url);
+  let w: number;
+  let h: number;
+  if (prev && prev.w >= wDesired) {
+    // Sticky: prev source is at least as wide as we'd request now. Keep it.
+    w = prev.w;
+    h = prev.h;
+  } else {
+    // Grow direction (or first call): bucket up, record the new max.
+    w = wDesired;
+    h = hDesired;
+    maxBucketBySrc.set(url, { w, h });
+  }
 
   // Picsum: trailing /{w}/{h} on the path, no query string in our dataset.
   // Anchored to end-of-string so the regex never matches a numeric segment
