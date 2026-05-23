@@ -70,7 +70,31 @@ export function useScrollAnchor({ scrollRef, layout, items }: UseScrollAnchorPar
       if (rowIdx === -1) return;
 
       const row = rows[rowIdx];
-      const item = currentItems[row.startIndex]; // leftmost item in the anchor row
+
+      // Prefer the previously-captured anchor item if it's still within this
+      // row's [startIndex, endIndex) range. Otherwise default to the row's
+      // leftmost item.
+      //
+      // The "otherwise" path is the common one — user scrolled to a new row,
+      // so the previous anchor is no longer relevant. The "prefer prev" path
+      // matters specifically for the recapture-after-restoration that follows
+      // every layout change: the topmost row in the new layout contains the
+      // anchor item by construction, but in a denser layout (e.g., 8 cols
+      // when the previous capture was at 5 cols) the row's *leftmost* is now
+      // some earlier item. Without this preservation, rapid slider toggles
+      // walk the anchor backward through the dataset, ~1 row per 3–4 extreme
+      // toggles. With it, the anchor identity persists across toggles and a
+      // round-trip leaves scroll position unchanged.
+      let item = currentItems[row.startIndex];
+      const prevId = anchorRef.current?.itemId;
+      if (prevId) {
+        for (let i = row.startIndex; i < row.endIndex; i++) {
+          if (currentItems[i].id === prevId) {
+            item = currentItems[i];
+            break;
+          }
+        }
+      }
       if (!item) return;
 
       anchorRef.current = {
