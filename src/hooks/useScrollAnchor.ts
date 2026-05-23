@@ -66,40 +66,53 @@ export function useScrollAnchor({ scrollRef, layout, items }: UseScrollAnchorPar
       if (rows.length === 0) return;
 
       const scrollTop = el.scrollTop;
-      const rowIdx = findAnchorRow(rows, scrollTop);
-      if (rowIdx === -1) return;
+      const viewportBottom = scrollTop + el.clientHeight;
 
-      const row = rows[rowIdx];
-
-      // Prefer the previously-captured anchor item if it's still within this
-      // row's [startIndex, endIndex) range. Otherwise default to the row's
-      // leftmost item.
+      // Prefer the prev anchor's row if it's still visible anywhere in the
+      // viewport. The earlier rule was "use it only if it's within the
+      // topmost row's [startIndex, endIndex) range" — that broke after a
+      // restoration into a denser layout. Restoration sets scrollTop so the
+      // anchor row sits at its captured offset; in the new layout the offset
+      // can span *several* shorter rows, so the topmost row at-or-below
+      // scrollTop is some *other* row, not the anchor's row. The old rule
+      // saw no match and walked the anchor to that other row's leftmost,
+      // shifting position once per first cycle and then stabilizing wrong.
       //
-      // The "otherwise" path is the common one — user scrolled to a new row,
-      // so the previous anchor is no longer relevant. The "prefer prev" path
-      // matters specifically for the recapture-after-restoration that follows
-      // every layout change: the topmost row in the new layout contains the
-      // anchor item by construction, but in a denser layout (e.g., 8 cols
-      // when the previous capture was at 5 cols) the row's *leftmost* is now
-      // some earlier item. Without this preservation, rapid slider toggles
-      // walk the anchor backward through the dataset, ~1 row per 3–4 extreme
-      // toggles. With it, the anchor identity persists across toggles and a
-      // round-trip leaves scroll position unchanged.
-      let item = currentItems[row.startIndex];
+      // The new rule: track the same anchor item as long as its row remains
+      // in view. User-scrolled it off-screen → fall back to "topmost row's
+      // leftmost item" (the default capture for fresh scrolls).
+      let anchorRow: LayoutRow | undefined;
+      let anchorItem: MediaItem | undefined;
+
       const prevId = anchorRef.current?.itemId;
       if (prevId) {
-        for (let i = row.startIndex; i < row.endIndex; i++) {
-          if (currentItems[i].id === prevId) {
-            item = currentItems[i];
-            break;
+        const prevItemIdx = findItemIndexById(currentItems, prevId);
+        if (prevItemIdx !== -1) {
+          const r = findRowByItemIndex(rows, prevItemIdx);
+          if (r !== -1) {
+            const candidate = rows[r];
+            const stillVisible =
+              candidate.y + candidate.height > scrollTop &&
+              candidate.y < viewportBottom;
+            if (stillVisible) {
+              anchorRow = candidate;
+              anchorItem = currentItems[prevItemIdx];
+            }
           }
         }
       }
-      if (!item) return;
+
+      if (!anchorRow || !anchorItem) {
+        const rowIdx = findAnchorRow(rows, scrollTop);
+        if (rowIdx === -1) return;
+        anchorRow = rows[rowIdx];
+        anchorItem = currentItems[anchorRow.startIndex];
+      }
+      if (!anchorItem) return;
 
       anchorRef.current = {
-        itemId: item.id,
-        offsetFromViewportTop: row.y - scrollTop,
+        itemId: anchorItem.id,
+        offsetFromViewportTop: anchorRow.y - scrollTop,
       };
     };
 
@@ -193,6 +206,22 @@ function findAnchorRow(
   }
   if (lo < rows.length) return lo;
   return rows.length > 0 ? rows.length - 1 : -1;
+}
+
+/**
+ * Linear scan for an item by id. Sub-ms at 2k items; used only on each
+ * capture frame (rAF-throttled). A Map<id, index> would be O(1) but the
+ * indexing pass is per render and would itself be O(n), so the practical
+ * cost is the same.
+ */
+function findItemIndexById(
+  items: ReadonlyArray<MediaItem>,
+  id: string,
+): number {
+  for (let i = 0; i < items.length; i++) {
+    if (items[i].id === id) return i;
+  }
+  return -1;
 }
 
 /**
