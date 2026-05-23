@@ -41,14 +41,20 @@ export function MediaItem({ item, cell, rowY }: MediaItemProps) {
         // before cached images paint on remount.
         <img src={item.url} alt="" />
       ) : (
-        // Native <video poster> + preload="none" — one DOM node, browser-managed
-        // poster timing, video bytes only fetch on play(). See Decisions log
-        // 2026-05-23 for the <img>-overlay alternative considered.
+        // preload="metadata" + no `poster` attribute: the static (paused)
+        // state of the cell IS the video's actual first frame, so the cell
+        // looks like what it will play. A separate Picsum `poster` URL ran
+        // afoul of content mismatch — a paused cell would show a random
+        // raspberry-bowl image, then suddenly become jellyfish on play. The
+        // metadata fetch is small (a few KB per element); the heavy bytes
+        // still wait for useVideoPlayback to call .play(). With #t={N}
+        // hashes in the URL, the displayed first frame is the frame AT t=N,
+        // so 10 different cells of the same underlying clip show 10
+        // different stills. See Decisions log 2026-05-23.
         <video
           ref={videoRef}
-          poster={item.posterUrl}
           src={item.url}
-          preload="none"
+          preload="metadata"
           muted
           playsInline
           loop

@@ -21,27 +21,53 @@ const IMAGE_FRACTION = 0.8; // 80/20 image/video — realistic feed mix
 const SEED = 0xc0ffee;
 const NOMINAL_HEIGHT_PX = 320; // baked into image URLs; modest over-fetch for typical row heights, no commitment to S4
 
-// Three visually-distinct public sample clips. There is no public catalog of
-// hundreds of distinct CC-licensed MP4s — every "sample-video CDN" hosts the
-// same three or four Blender Foundation shorts. Rather than ship 400 cells
-// that all play one of three clips, we multiply distinctness by appending a
-// `#t={N}` Media Fragment hash to each item's URL: the underlying MP4 is
-// fetched and cached once, but each <video> element seeks to a different
-// second of the clip on first play, so a viewport rarely shows the same
-// moment of the same clip twice.
+// Pexels CDN serves these video-files URLs publicly without auth or a Referer
+// header. The IDs were enumerated manually against `videos.pexels.com/video-files/{id}/`
+// in May 2026 — they're stable and the responses include `cache-control` for
+// CDN re-use. Earlier iterations of this dataset used Google's
+// gtv-videos-bucket (now 403 anonymous) and test-videos.co.uk (3 visually-distinct
+// Blender clips, which left the feed feeling like 3 looping subjects). Pexels
+// gives 23 actually-different visual subjects (landscapes, people, animals,
+// etc.); combined with the per-item `#t={N}` Media Fragment hash that seeks
+// each <video> to a different second, the user-visible duplication rate drops
+// to ~0 within any reasonable viewport.
 const VIDEO_CLIPS = [
-  'https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/360/Big_Buck_Bunny_360_10s_1MB.mp4',
-  'https://test-videos.co.uk/vids/sintel/mp4/h264/360/Sintel_360_10s_1MB.mp4',
-  'https://test-videos.co.uk/vids/jellyfish/mp4/h264/360/Jellyfish_360_10s_1MB.mp4',
+  'https://videos.pexels.com/video-files/853874/853874-hd_1280_720_25fps.mp4',
+  'https://videos.pexels.com/video-files/854174/854174-hd_1280_720_25fps.mp4',
+  'https://videos.pexels.com/video-files/854178/854178-hd_1280_720_25fps.mp4',
+  'https://videos.pexels.com/video-files/854179/854179-hd_1280_720_25fps.mp4',
+  'https://videos.pexels.com/video-files/854181/854181-hd_1280_720_25fps.mp4',
+  'https://videos.pexels.com/video-files/855023/855023-hd_1280_720_25fps.mp4',
+  'https://videos.pexels.com/video-files/855135/855135-hd_1280_720_24fps.mp4',
+  'https://videos.pexels.com/video-files/855137/855137-hd_1280_720_24fps.mp4',
+  'https://videos.pexels.com/video-files/855196/855196-hd_1280_720_25fps.mp4',
+  'https://videos.pexels.com/video-files/855296/855296-hd_1280_720_25fps.mp4',
+  'https://videos.pexels.com/video-files/856930/856930-hd_1280_720_25fps.mp4',
+  'https://videos.pexels.com/video-files/856974/856974-hd_1280_720_30fps.mp4',
+  'https://videos.pexels.com/video-files/856987/856987-hd_1280_720_24fps.mp4',
+  'https://videos.pexels.com/video-files/856993/856993-hd_1280_720_30fps.mp4',
+  'https://videos.pexels.com/video-files/856994/856994-hd_1280_720_24fps.mp4',
+  'https://videos.pexels.com/video-files/856996/856996-hd_1280_720_24fps.mp4',
+  'https://videos.pexels.com/video-files/857130/857130-hd_1280_720_24fps.mp4',
+  'https://videos.pexels.com/video-files/1093661/1093661-hd_1280_720_30fps.mp4',
+  'https://videos.pexels.com/video-files/1409899/1409899-hd_1280_720_25fps.mp4',
+  'https://videos.pexels.com/video-files/1739010/1739010-sd_640_360_30fps.mp4',
+  'https://videos.pexels.com/video-files/2098989/2098989-hd_1280_720_30fps.mp4',
+  'https://videos.pexels.com/video-files/5752729/5752729-hd_1280_720_30fps.mp4',
+  'https://videos.pexels.com/video-files/7565460/7565460-hd_1280_720_25fps.mp4',
 ];
 
-// 10 starting offsets across each 10s clip. 3 clips × 10 offsets = 30
-// visually-distinct variants, distributed round-robin across video items
-// (see generate()) so adjacent video items always get different variants.
+// 10 starting offsets across each clip. 23 clips × 10 offsets = 230
+// visually-distinct variants. The variant array is ordered clip-major
+// (transpose the obvious clips.flatMap(starts.map) order) so that consecutive
+// round-robin assignments — `VARIANTS[cursor]`, `VARIANTS[cursor+1]`, … —
+// step through DIFFERENT clips, not different timestamps of the same clip.
+// The naive nesting would put 10 cells of clip[0]#t=0..9 before any clip[1]
+// cell, making the first viewport's videos all the same Pexels source.
 const VIDEO_VARIANT_STARTS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
 
-const VIDEO_VARIANTS: ReadonlyArray<string> = VIDEO_CLIPS.flatMap((url) =>
-  VIDEO_VARIANT_STARTS.map((t) => `${url}#t=${t}`),
+const VIDEO_VARIANTS: ReadonlyArray<string> = VIDEO_VARIANT_STARTS.flatMap((t) =>
+  VIDEO_CLIPS.map((url) => `${url}#t=${t}`),
 );
 
 // Aspect-ratio distribution, per the brief. Weights are probabilities, must sum to 1.
@@ -141,7 +167,6 @@ function generate(): MediaItem[] {
         kind: 'video',
         id,
         url: VIDEO_VARIANTS[videoCursor % VIDEO_VARIANTS.length],
-        posterUrl: picsumUrl(`${id}-poster`, aspectRatio),
         aspectRatio,
       });
       videoCursor++;

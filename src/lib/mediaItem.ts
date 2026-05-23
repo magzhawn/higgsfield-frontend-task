@@ -17,7 +17,6 @@ export type VideoItem = {
   kind: 'video';
   id: string;
   url: string;
-  posterUrl: string;
   aspectRatio: number;
 };
 
