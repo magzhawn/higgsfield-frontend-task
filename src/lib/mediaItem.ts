@@ -17,6 +17,13 @@ export type VideoItem = {
   kind: 'video';
   id: string;
   url: string;
+  // Static poster shown by the <video> element until play(). Matches the
+  // video's actual content (Pexels exposes a thumbnail per video at
+  // images.pexels.com/videos/{id}/free-video-{id}.jpg), so the paused cell
+  // looks like what the video will play. See Decisions log 2026-05-23 for
+  // why we don't use preload="metadata" instead — it triggers a metadata
+  // fetch per mounted <video>, saturating the per-origin connection pool.
+  posterUrl: string;
   aspectRatio: number;
 };
 

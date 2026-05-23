@@ -23,51 +23,49 @@ const NOMINAL_HEIGHT_PX = 320; // baked into image URLs; modest over-fetch for t
 
 // Pexels CDN serves these video-files URLs publicly without auth or a Referer
 // header. The IDs were enumerated manually against `videos.pexels.com/video-files/{id}/`
-// in May 2026 — they're stable and the responses include `cache-control` for
-// CDN re-use. Earlier iterations of this dataset used Google's
-// gtv-videos-bucket (now 403 anonymous) and test-videos.co.uk (3 visually-distinct
-// Blender clips, which left the feed feeling like 3 looping subjects). Pexels
-// gives 23 actually-different visual subjects (landscapes, people, animals,
-// etc.); combined with the per-item `#t={N}` Media Fragment hash that seeks
-// each <video> to a different second, the user-visible duplication rate drops
-// to ~0 within any reasonable viewport.
-const VIDEO_CLIPS = [
-  'https://videos.pexels.com/video-files/853874/853874-hd_1280_720_25fps.mp4',
-  'https://videos.pexels.com/video-files/854174/854174-hd_1280_720_25fps.mp4',
-  'https://videos.pexels.com/video-files/854178/854178-hd_1280_720_25fps.mp4',
-  'https://videos.pexels.com/video-files/854179/854179-hd_1280_720_25fps.mp4',
-  'https://videos.pexels.com/video-files/854181/854181-hd_1280_720_25fps.mp4',
-  'https://videos.pexels.com/video-files/855023/855023-hd_1280_720_25fps.mp4',
-  'https://videos.pexels.com/video-files/855135/855135-hd_1280_720_24fps.mp4',
-  'https://videos.pexels.com/video-files/855137/855137-hd_1280_720_24fps.mp4',
-  'https://videos.pexels.com/video-files/855196/855196-hd_1280_720_25fps.mp4',
-  'https://videos.pexels.com/video-files/855296/855296-hd_1280_720_25fps.mp4',
-  'https://videos.pexels.com/video-files/856930/856930-hd_1280_720_25fps.mp4',
-  'https://videos.pexels.com/video-files/856974/856974-hd_1280_720_30fps.mp4',
-  'https://videos.pexels.com/video-files/856987/856987-hd_1280_720_24fps.mp4',
-  'https://videos.pexels.com/video-files/856993/856993-hd_1280_720_30fps.mp4',
-  'https://videos.pexels.com/video-files/856994/856994-hd_1280_720_24fps.mp4',
-  'https://videos.pexels.com/video-files/856996/856996-hd_1280_720_24fps.mp4',
-  'https://videos.pexels.com/video-files/857130/857130-hd_1280_720_24fps.mp4',
-  'https://videos.pexels.com/video-files/1093661/1093661-hd_1280_720_30fps.mp4',
-  'https://videos.pexels.com/video-files/1409899/1409899-hd_1280_720_25fps.mp4',
-  'https://videos.pexels.com/video-files/1739010/1739010-sd_640_360_30fps.mp4',
-  'https://videos.pexels.com/video-files/2098989/2098989-hd_1280_720_30fps.mp4',
-  'https://videos.pexels.com/video-files/5752729/5752729-hd_1280_720_30fps.mp4',
-  'https://videos.pexels.com/video-files/7565460/7565460-hd_1280_720_25fps.mp4',
+// in May 2026 — they're stable. Pexels also exposes a thumbnail for each video
+// at `images.pexels.com/videos/{id}/free-video-{id}.jpg`; using that as the
+// <video> poster keeps the paused cell looking like the playing video, without
+// having to set preload="metadata" (which would trigger a metadata fetch per
+// mounted <video> and saturate the per-origin connection pool on fast scrolls).
+// 21 of the 23 working video URLs have an accessible thumbnail at that path;
+// the other two are dropped here so every video has a poster.
+const VIDEO_SOURCES: ReadonlyArray<{ url: string; poster: string }> = [
+  { url: 'https://videos.pexels.com/video-files/853874/853874-hd_1280_720_25fps.mp4', poster: 'https://images.pexels.com/videos/853874/free-video-853874.jpg' },
+  { url: 'https://videos.pexels.com/video-files/854174/854174-hd_1280_720_25fps.mp4', poster: 'https://images.pexels.com/videos/854174/free-video-854174.jpg' },
+  { url: 'https://videos.pexels.com/video-files/854178/854178-hd_1280_720_25fps.mp4', poster: 'https://images.pexels.com/videos/854178/free-video-854178.jpg' },
+  { url: 'https://videos.pexels.com/video-files/854179/854179-hd_1280_720_25fps.mp4', poster: 'https://images.pexels.com/videos/854179/free-video-854179.jpg' },
+  { url: 'https://videos.pexels.com/video-files/854181/854181-hd_1280_720_25fps.mp4', poster: 'https://images.pexels.com/videos/854181/free-video-854181.jpg' },
+  { url: 'https://videos.pexels.com/video-files/855023/855023-hd_1280_720_25fps.mp4', poster: 'https://images.pexels.com/videos/855023/free-video-855023.jpg' },
+  { url: 'https://videos.pexels.com/video-files/855135/855135-hd_1280_720_24fps.mp4', poster: 'https://images.pexels.com/videos/855135/free-video-855135.jpg' },
+  { url: 'https://videos.pexels.com/video-files/855137/855137-hd_1280_720_24fps.mp4', poster: 'https://images.pexels.com/videos/855137/free-video-855137.jpg' },
+  { url: 'https://videos.pexels.com/video-files/855196/855196-hd_1280_720_25fps.mp4', poster: 'https://images.pexels.com/videos/855196/free-video-855196.jpg' },
+  { url: 'https://videos.pexels.com/video-files/855296/855296-hd_1280_720_25fps.mp4', poster: 'https://images.pexels.com/videos/855296/free-video-855296.jpg' },
+  { url: 'https://videos.pexels.com/video-files/856930/856930-hd_1280_720_25fps.mp4', poster: 'https://images.pexels.com/videos/856930/free-video-856930.jpg' },
+  { url: 'https://videos.pexels.com/video-files/856974/856974-hd_1280_720_30fps.mp4', poster: 'https://images.pexels.com/videos/856974/free-video-856974.jpg' },
+  { url: 'https://videos.pexels.com/video-files/856987/856987-hd_1280_720_24fps.mp4', poster: 'https://images.pexels.com/videos/856987/free-video-856987.jpg' },
+  { url: 'https://videos.pexels.com/video-files/856993/856993-hd_1280_720_30fps.mp4', poster: 'https://images.pexels.com/videos/856993/free-video-856993.jpg' },
+  { url: 'https://videos.pexels.com/video-files/856994/856994-hd_1280_720_24fps.mp4', poster: 'https://images.pexels.com/videos/856994/free-video-856994.jpg' },
+  { url: 'https://videos.pexels.com/video-files/856996/856996-hd_1280_720_24fps.mp4', poster: 'https://images.pexels.com/videos/856996/free-video-856996.jpg' },
+  { url: 'https://videos.pexels.com/video-files/857130/857130-hd_1280_720_24fps.mp4', poster: 'https://images.pexels.com/videos/857130/free-video-857130.jpg' },
+  { url: 'https://videos.pexels.com/video-files/1093661/1093661-hd_1280_720_30fps.mp4', poster: 'https://images.pexels.com/videos/1093661/free-video-1093661.jpg' },
+  { url: 'https://videos.pexels.com/video-files/1409899/1409899-hd_1280_720_25fps.mp4', poster: 'https://images.pexels.com/videos/1409899/free-video-1409899.jpg' },
+  { url: 'https://videos.pexels.com/video-files/1739010/1739010-sd_640_360_30fps.mp4', poster: 'https://images.pexels.com/videos/1739010/free-video-1739010.jpg' },
+  { url: 'https://videos.pexels.com/video-files/2098989/2098989-hd_1280_720_30fps.mp4', poster: 'https://images.pexels.com/videos/2098989/free-video-2098989.jpg' },
 ];
 
-// 10 starting offsets across each clip. 23 clips × 10 offsets = 230
-// visually-distinct variants. The variant array is ordered clip-major
+// 10 starting offsets across each clip. 21 clips × 10 offsets = 210
+// visually-distinct variants. The variant array is ordered time-major
 // (transpose the obvious clips.flatMap(starts.map) order) so that consecutive
-// round-robin assignments — `VARIANTS[cursor]`, `VARIANTS[cursor+1]`, … —
-// step through DIFFERENT clips, not different timestamps of the same clip.
-// The naive nesting would put 10 cells of clip[0]#t=0..9 before any clip[1]
-// cell, making the first viewport's videos all the same Pexels source.
+// round-robin assignments step through DIFFERENT clips, not different
+// timestamps of the same clip. The naive nesting would put 10 cells of
+// clip[0]#t=0..9 before any clip[1] cell, making the first viewport's
+// videos all the same Pexels source.
 const VIDEO_VARIANT_STARTS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
 
-const VIDEO_VARIANTS: ReadonlyArray<string> = VIDEO_VARIANT_STARTS.flatMap((t) =>
-  VIDEO_CLIPS.map((url) => `${url}#t=${t}`),
+interface VideoVariant { url: string; poster: string }
+const VIDEO_VARIANTS: ReadonlyArray<VideoVariant> = VIDEO_VARIANT_STARTS.flatMap((t) =>
+  VIDEO_SOURCES.map((s) => ({ url: `${s.url}#t=${t}`, poster: s.poster })),
 );
 
 // Aspect-ratio distribution, per the brief. Weights are probabilities, must sum to 1.
@@ -163,10 +161,12 @@ function generate(): MediaItem[] {
     if (kind === 'image') {
       items.push({ kind: 'image', id, url: picsumUrl(id, aspectRatio), aspectRatio });
     } else {
+      const v = VIDEO_VARIANTS[videoCursor % VIDEO_VARIANTS.length];
       items.push({
         kind: 'video',
         id,
-        url: VIDEO_VARIANTS[videoCursor % VIDEO_VARIANTS.length],
+        url: v.url,
+        posterUrl: v.poster,
         aspectRatio,
       });
       videoCursor++;
