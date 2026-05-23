@@ -11,7 +11,8 @@ Time budget: **10–15 hours total**. Feature count is not the grading axis — 
 ## 2. Non-goals — refuse or push back if asked
 
 - State management libraries (Redux, Zustand, Jotai, Recoil). `useState` + `useReducer` cover this app.
-- UI component libraries (shadcn, MUI, Chakra, Radix, Headless UI). Tailwind only.
+- UI component libraries (shadcn, MUI, Chakra, Radix, Headless UI). Plain CSS only.
+- Tailwind (or any utility-CSS framework). Whole UI lives in ~25 distinct CSS properties; the value of utility classes (scaling across a large surface) doesn't activate at this scope. Plain CSS in `src/styles/index.css`.
 - Testing infrastructure beyond *at most* one or two pure-function unit tests for the layout algorithm. No Vitest config sprawl, no React Testing Library, no Playwright.
 - Authentication, routing, SSR, server components, API layers. The dataset is a static JSON file.
 - FSD, feature-folder, hexagonal, clean architecture, or any other generic structure. The pragmatic split below is deliberate for a ~25-file project.
@@ -89,6 +90,12 @@ If one concept genuinely grows into 4–5 cohesive files (e.g., the video playba
 
 - Measure before optimizing past the obvious. Layout math is memoized. Row components are stable. That's the floor.
 - If you reach for `React.memo`, justify it (referential stability of inputs is required, otherwise it's noise).
+
+**Styling**
+
+- Plain CSS in `src/styles/index.css`. Class names describe what an element IS, not how it looks — `.feed`, `.row`, `.item`, `.control`. Never `.flex-wrap-center` or `.mt-4`.
+- Computed values (positions, sizes coming from the layout output) go in inline `style={}`. Everything else goes in CSS.
+- No CSS-in-JS, no Tailwind, no UI libraries. If you'd reach for one, write the ~5 lines of CSS instead.
 
 ## 5. The five core pillars — pinned decisions
 
@@ -175,3 +182,4 @@ Append entries here as we go. Format: `YYYY-MM-DD — decision — alternatives 
 - **2026-05-23 — One stretch goal, chosen late.** Alternative: attempt several. Why: time budget and grading axis (tradeoff reasoning over feature count); S1 is the leading candidate for Loom impact. See §1.
 - **2026-05-23 — Tailwind v4 via `@tailwindcss/vite` plugin (no PostCSS, no `tailwind.config.js`).** Alternatives: v4 + PostCSS (slower, no benefit here); Tailwind v3 (more docs, more config). Why: official v4 default, fastest build, CSS-first config means one line in `index.css` and zero config files.
 - **2026-05-23 — `@/*` path alias to `src/*`.** Alternative: relative imports only. Why: keeps deep imports readable (`@/lib/justifiedLayout` over `../../lib/justifiedLayout`); explicit in tsconfig + Vite resolve, so the wiring is visible to a reviewer.
+- **2026-05-23 — Removed Tailwind; plain CSS instead (supersedes the earlier Tailwind decision).** Alternatives: keep Tailwind v4, CSS Modules, CSS-in-JS. Why: whole UI is ~25 CSS properties — utility classes don't earn their place at this surface area. Inlined Andy Bell's reset in `src/styles/index.css`; component styles named by what the element IS (`.feed`, `.row`, `.item`). Computed values (positions, sizes from layout output) stay in inline `style={}`. See §4 styling subsection.
