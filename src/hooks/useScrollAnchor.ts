@@ -118,7 +118,19 @@ export function useScrollAnchor({ scrollRef, layout, items }: UseScrollAnchorPar
     // the clamped position, and back-and-forth slider drags won't fully
     // round-trip. Out of scope to preserve anchor identity across clamps.
     const maxScroll = Math.max(0, layout.totalHeight - el.clientHeight);
-    el.scrollTop = Math.max(0, Math.min(desired, maxScroll));
+    const target = Math.max(0, Math.min(desired, maxScroll));
+    if (target === el.scrollTop) return;
+    el.scrollTop = target;
+    // Force any subscribed scroll listeners (notably @tanstack/react-virtual's
+    // own listener, which caches its internal scrollOffset and uses it to
+    // pick which rows to render) to observe the new scrollTop *inside this
+    // useLayoutEffect*, before paint. The browser would deliver this event
+    // asynchronously on its own, leaving one paint with the virtualizer's
+    // stale offset — the virtualizer renders rows for the previous scrollTop
+    // (in the new layout's coordinate space), and the viewport at the
+    // restored scrollTop ends up empty. Dispatching synchronously lands the
+    // update in the current commit cycle so the next paint is correct.
+    el.dispatchEvent(new Event('scroll'));
   }, [layout, items, scrollRef]);
 }
 

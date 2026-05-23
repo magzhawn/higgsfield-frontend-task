@@ -1,54 +1,43 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useSyncExternalStore } from 'react';
 import type { RefObject } from 'react';
-import { flushSync } from 'react-dom';
 
 /**
  * Observe the container element's content-box width and surface it as state.
  *
- * The setState call is wrapped in `flushSync` so the re-render commits
- * inside the ResizeObserver callback, before the next paint. Without it,
- * React's default scheduler can defer the re-render to a later task — for
- * one paint the viewport is at the new width but children are still
- * positioned for the previous width, so cells laid out wider than the new
- * viewport spill past the right edge (visible as a white band during
- * sustained resize drags).
+ * Implemented via useSyncExternalStore: the ResizeObserver acts as the
+ * external store's change signal, and getSnapshot reads the width fresh
+ * from the DOM on each render. This gives us same-frame width updates
+ * without flushSync (which fires "called from inside a lifecycle method"
+ * warnings during concurrent renders when a slider-induced layout change
+ * cascades into a scrollbar toggle and re-fires the observer).
  *
- * Initial value is 0 deliberately: the first paint runs before the observer
- * has fired even once, so anything synchronous here would either be wrong or
- * would force an extra render. Consumers must tolerate width === 0 on the
- * first paint (the layout hook returns an empty result in that case).
+ * The earlier rAF-throttled-setState approach introduced a one-frame lag
+ * during sustained resize drags — cells were positioned for the previous
+ * width and spilled past the new viewport edge as a white band. The earlier
+ * flushSync-setState fix landed the width in the same frame but produced
+ * dev-mode warnings. useSyncExternalStore gets both: same-frame and warning-free.
  *
- * See CLAUDE.md §5 pillar 5 for why ResizeObserver beats `window.resize`
- * debounced.
+ * Initial value (when ref.current is null) is 0. The first paint runs with
+ * an empty layout; the observer subscribes on mount and the next paint has
+ * the real width. See CLAUDE.md §5 pillar 5.
  */
 export function useContainerWidth(
   ref: RefObject<HTMLElement | null>,
 ): number {
-  // Initial width = 0. The ref is null at first render, so we can't
-  // synchronously measure. First paint runs with an empty layout (the
-  // algorithm guards against width=0); the observer fires on mount, and the
-  // next paint has the real width. The single empty frame is invisible at 60fps.
-  const [width, setWidth] = useState(0);
+  const subscribe = useCallback(
+    (notify: () => void) => {
+      const el = ref.current;
+      if (!el) return () => {};
+      const observer = new ResizeObserver(notify);
+      observer.observe(el);
+      return () => observer.disconnect();
+    },
+    [ref],
+  );
 
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
+  const getSnapshot = useCallback(() => {
+    return ref.current?.getBoundingClientRect().width ?? 0;
+  }, [ref]);
 
-    const observer = new ResizeObserver((entries) => {
-      // Single-target observer, so entries[0] is always our element.
-      const entry = entries[0];
-      if (!entry) return;
-      // flushSync forces the resulting re-render + commit before this
-      // callback returns. ResizeObserver callbacks run between layout and
-      // paint; flushing here means the next paint sees the new layout's
-      // cell.x / cell.width, not the previous frame's.
-      flushSync(() => setWidth(entry.contentRect.width));
-    });
-
-    observer.observe(el);
-    return () => observer.disconnect();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- ref identity is stable; we attach the observer once on mount and read ref.current inside.
-  }, []);
-
-  return width;
+  return useSyncExternalStore(subscribe, getSnapshot, () => 0);
 }

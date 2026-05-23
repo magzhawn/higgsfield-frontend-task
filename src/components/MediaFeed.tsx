@@ -48,6 +48,15 @@ export function MediaFeed({ items, columns, gap }: MediaFeedProps) {
     // The fast-scroll grace stretch (S2) would scale this dynamically; static
     // 5 is the placeholder.
     overscan: 5,
+    // The library defaults to wrapping its internal re-renders in flushSync
+    // on every scroll-driven update. We trigger one of those updates from
+    // inside useScrollAnchor's useLayoutEffect (via a synthetic scroll
+    // dispatch that lands the new offset same-frame), and flushSync from
+    // inside a lifecycle method fires a React dev-mode warning. Disabling
+    // useFlushSync uses a plain rerender; React 18 still flushes it in the
+    // current commit cycle when we're already inside an effect, so the
+    // visual outcome is the same.
+    useFlushSync: false,
   });
 
   // Preserve the topmost-visible item across layout changes (column-count
