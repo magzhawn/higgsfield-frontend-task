@@ -1,6 +1,8 @@
+import { useRef } from 'react';
 import { isImage } from '@/lib/mediaItem';
 import type { MediaItem as MediaItemType } from '@/lib/mediaItem';
 import type { LayoutCell } from '@/lib/justifiedLayout';
+import { useVideoCell } from '@/hooks/useVideoPlayback';
 
 interface MediaItemProps {
   item: MediaItemType;
@@ -8,10 +10,12 @@ interface MediaItemProps {
 }
 
 export function MediaItem({ item, cell }: MediaItemProps) {
-  // TODO(Step 6): videos render their poster as a static <img> here. The
-  // <video> element and autoplay-when-stationary manager (CLAUDE.md §5
-  // pillar 4) land in Step 6 — this is a placeholder, not a finished cell.
-  const src = isImage(item) ? item.url : item.posterUrl;
+  // The ref attaches only to the <video> branch below; for image items it
+  // stays null and useVideoCell's effect early-returns. Calling the hook
+  // unconditionally keeps hook ordering stable across image/video items
+  // without splitting MediaItem into two components.
+  const videoRef = useRef<HTMLVideoElement>(null);
+  useVideoCell(videoRef, item.id);
 
   return (
     <div
@@ -26,7 +30,22 @@ export function MediaItem({ item, cell }: MediaItemProps) {
         transform: `translateX(${cell.x}px)`,
       }}
     >
-      <img src={src} alt="" loading="lazy" />
+      {isImage(item) ? (
+        <img src={item.url} alt="" loading="lazy" />
+      ) : (
+        // Native <video poster> + preload="none" — one DOM node, browser-managed
+        // poster timing, video bytes only fetch on play(). See Decisions log
+        // 2026-05-23 for the <img>-overlay alternative considered.
+        <video
+          ref={videoRef}
+          poster={item.posterUrl}
+          src={item.url}
+          preload="none"
+          muted
+          playsInline
+          loop
+        />
+      )}
     </div>
   );
 }

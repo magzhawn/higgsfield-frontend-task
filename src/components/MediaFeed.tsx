@@ -3,6 +3,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { useContainerWidth } from '@/hooks/useContainerWidth';
 import { useJustifiedLayout } from '@/hooks/useJustifiedLayout';
 import { useScrollAnchor } from '@/hooks/useScrollAnchor';
+import { VideoPlaybackProvider } from '@/hooks/useVideoPlayback';
 import type { MediaItem } from '@/lib/mediaItem';
 import { MediaRow } from './MediaRow';
 
@@ -54,20 +55,28 @@ export function MediaFeed({ items, columns, gap }: MediaFeedProps) {
   // change — see useScrollAnchor for the mechanics.
   useScrollAnchor({ scrollRef, layout, items });
 
+  // Provider wraps the whole feed (including the scroll element it controls)
+  // rather than just .feed-inner. Both placements work for context delivery,
+  // but wrapping outside reads as "the entire feed is under playback control"
+  // and matches the provider's effect lifecycle, which reaches *into*
+  // scrollRef.current. The provider renders no DOM — the resulting tree is
+  // identical to the unwrapped version.
   return (
-    <div ref={scrollRef} className="feed">
-      <div className="feed-inner" style={{ height: virtualizer.getTotalSize() }}>
-        {virtualizer.getVirtualItems().map((virtualRow) => {
-          const row = layout.rows[virtualRow.index];
-          return (
-            <MediaRow
-              key={virtualRow.key}
-              row={row}
-              items={items.slice(row.startIndex, row.endIndex)}
-            />
-          );
-        })}
+    <VideoPlaybackProvider scrollRef={scrollRef}>
+      <div ref={scrollRef} className="feed">
+        <div className="feed-inner" style={{ height: virtualizer.getTotalSize() }}>
+          {virtualizer.getVirtualItems().map((virtualRow) => {
+            const row = layout.rows[virtualRow.index];
+            return (
+              <MediaRow
+                key={virtualRow.key}
+                row={row}
+                items={items.slice(row.startIndex, row.endIndex)}
+              />
+            );
+          })}
+        </div>
       </div>
-    </div>
+    </VideoPlaybackProvider>
   );
 }
