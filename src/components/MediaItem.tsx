@@ -16,6 +16,10 @@ export function MediaItem({ item, cell }: MediaItemProps) {
   return (
     <div
       className="item"
+      // Stable id surfaced in the DOM so the scroll-anchor verification (and
+      // anyone debugging in devtools) can identify a cell without reaching
+      // into React internals.
+      data-item-id={item.id}
       style={{
         width: cell.width,
         height: cell.height,

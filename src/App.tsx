@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import { MediaFeed } from '@/components/MediaFeed';
+import { ColumnCountControl } from '@/components/ColumnCountControl';
 import itemsData from '@/data/items.json';
 import type { MediaItem } from '@/lib/mediaItem';
 
@@ -8,5 +10,11 @@ import type { MediaItem } from '@/lib/mediaItem';
 const items = itemsData as ReadonlyArray<MediaItem>;
 
 export default function App() {
-  return <MediaFeed items={items} targetRowHeight={240} gap={8} />;
+  const [columns, setColumns] = useState(5);
+  return (
+    <>
+      <ColumnCountControl value={columns} onChange={setColumns} />
+      <MediaFeed items={items} columns={columns} gap={8} />
+    </>
+  );
 }

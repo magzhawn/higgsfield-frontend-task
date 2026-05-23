@@ -100,3 +100,22 @@ h6 {
   object-fit: cover;
   display: block;
 }
+
+.control {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 1;
+  background: rgba(20, 20, 20, 0.85);
+  color: #fff;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 14px;
+  backdrop-filter: blur(6px);
+}
+
+.control-label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}

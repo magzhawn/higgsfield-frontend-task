@@ -2,18 +2,31 @@ import { useRef } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useContainerWidth } from '@/hooks/useContainerWidth';
 import { useJustifiedLayout } from '@/hooks/useJustifiedLayout';
+import { useScrollAnchor } from '@/hooks/useScrollAnchor';
 import type { MediaItem } from '@/lib/mediaItem';
 import { MediaRow } from './MediaRow';
 
 interface MediaFeedProps {
   items: ReadonlyArray<MediaItem>;
-  targetRowHeight: number;
+  columns: number;
   gap: number;
 }
 
-export function MediaFeed({ items, targetRowHeight, gap }: MediaFeedProps) {
+export function MediaFeed({ items, columns, gap }: MediaFeedProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const containerWidth = useContainerWidth(scrollRef);
+
+  // Column count is the user-facing handle (ColumnCountControl emits it),
+  // but the layout algorithm consumes a targetRowHeight. The translation
+  // lives here because containerWidth lives here — lifting the measurement
+  // up to App would mean splitting scrollRef from its measured element. The
+  // formula treats `columns` as "this many roughly-square cells across" and
+  // derives the matching row height; justified layout then packs more narrow
+  // items per row and fewer wide ones around that target. See CLAUDE.md §5
+  // pillar 1.
+  const targetRowHeight =
+    containerWidth > 0 ? (containerWidth - (columns - 1) * gap) / columns : 0;
+
   const layout = useJustifiedLayout(items, containerWidth, targetRowHeight, gap);
 
   const virtualizer = useVirtualizer({
@@ -35,6 +48,11 @@ export function MediaFeed({ items, targetRowHeight, gap }: MediaFeedProps) {
     // 5 is the placeholder.
     overscan: 5,
   });
+
+  // Preserve the topmost-visible item across layout changes (column-count
+  // slider, viewport resize). Capture on scroll, restore on layout reference
+  // change — see useScrollAnchor for the mechanics.
+  useScrollAnchor({ scrollRef, layout, items });
 
   return (
     <div ref={scrollRef} className="feed">
