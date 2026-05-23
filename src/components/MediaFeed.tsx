@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useCallback, useRef } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useContainerWidth } from '@/hooks/useContainerWidth';
 import { useJustifiedLayout } from '@/hooks/useJustifiedLayout';
@@ -30,9 +30,23 @@ export function MediaFeed({ items, columns, gap }: MediaFeedProps) {
 
   const layout = useJustifiedLayout(items, containerWidth, targetRowHeight, gap);
 
+  // The virtualizer's internal getMeasurementOptions memo (in
+  // @tanstack/virtual-core) does NOT include estimateSize in its dependencies.
+  // It does include getItemKey. So when the layout reference changes (e.g., a
+  // resize causes new row heights), re-creating estimateSize alone leaves the
+  // cache stale and getTotalSize returns the previous layout's total — rows
+  // positioned by the new layout end up extending past the scroll surface and
+  // the viewport at max scrollTop renders empty. Re-creating getItemKey with
+  // a [layout] dep changes its identity, the memo invalidates, and
+  // measurements rebuild against the current estimateSize in the same render.
+  // Returned key value is unchanged (the row index) so downstream behavior
+  // is identical to the default.
+  const getItemKey = useCallback((index: number) => index, [layout]);
+
   const virtualizer = useVirtualizer({
     count: layout.rows.length,
     getScrollElement: () => scrollRef.current,
+    getItemKey,
     estimateSize: (i) => {
       // Size reported to the virtualizer is the row's contribution to scroll
       // height: its own height plus the gap separating it from the next row.
