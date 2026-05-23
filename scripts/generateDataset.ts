@@ -21,23 +21,28 @@ const IMAGE_FRACTION = 0.8; // 80/20 image/video — realistic feed mix
 const SEED = 0xc0ffee;
 const NOMINAL_HEIGHT_PX = 320; // baked into image URLs; modest over-fetch for typical row heights, no commitment to S4
 
-// Public sample MP4s reused across items. The playback manager cares about
-// media element behavior, not file diversity, so a handful of distinct URLs
-// is plenty. test-videos.co.uk hosts short Creative-Commons clips with
-// stable URLs and aggressive cache headers. (Originally we used Google's
-// gtv-videos-bucket, but Google revoked anonymous read access in 2026 —
-// every fetch returned 403, all video tags showed posters only.)
-const VIDEO_URLS = [
+// Three visually-distinct public sample clips. There is no public catalog of
+// hundreds of distinct CC-licensed MP4s — every "sample-video CDN" hosts the
+// same three or four Blender Foundation shorts. Rather than ship 400 cells
+// that all play one of three clips, we multiply distinctness by appending a
+// `#t={N}` Media Fragment hash to each item's URL: the underlying MP4 is
+// fetched and cached once, but each <video> element seeks to a different
+// second of the clip on first play, so a viewport rarely shows the same
+// moment of the same clip twice.
+const VIDEO_CLIPS = [
   'https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/360/Big_Buck_Bunny_360_10s_1MB.mp4',
-  'https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/360/Big_Buck_Bunny_360_10s_2MB.mp4',
-  'https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/360/Big_Buck_Bunny_360_10s_5MB.mp4',
   'https://test-videos.co.uk/vids/sintel/mp4/h264/360/Sintel_360_10s_1MB.mp4',
-  'https://test-videos.co.uk/vids/sintel/mp4/h264/360/Sintel_360_10s_2MB.mp4',
-  'https://test-videos.co.uk/vids/sintel/mp4/h264/360/Sintel_360_10s_5MB.mp4',
   'https://test-videos.co.uk/vids/jellyfish/mp4/h264/360/Jellyfish_360_10s_1MB.mp4',
-  'https://test-videos.co.uk/vids/jellyfish/mp4/h264/360/Jellyfish_360_10s_2MB.mp4',
-  'https://test-videos.co.uk/vids/jellyfish/mp4/h264/360/Jellyfish_360_10s_5MB.mp4',
 ];
+
+// 10 starting offsets across each 10s clip. 3 clips × 10 offsets = 30
+// visually-distinct variants, distributed round-robin across video items
+// (see generate()) so adjacent video items always get different variants.
+const VIDEO_VARIANT_STARTS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+
+const VIDEO_VARIANTS: ReadonlyArray<string> = VIDEO_CLIPS.flatMap((url) =>
+  VIDEO_VARIANT_STARTS.map((t) => `${url}#t=${t}`),
+);
 
 // Aspect-ratio distribution, per the brief. Weights are probabilities, must sum to 1.
 // Extremes (~5%) are included on purpose — panoramas and tall portraits are the
@@ -116,6 +121,13 @@ function picsumUrl(seed: string, aspectRatio: number): string {
 function generate(): MediaItem[] {
   const kinds = makeKinds(TOTAL_ITEMS, IMAGE_FRACTION);
   const items: MediaItem[] = [];
+  // Round-robin cursor for video variant assignment. Stepping the cursor
+  // only on video items (not all items) spreads the 30 variants evenly
+  // across the 400 video items in the dataset, so adjacent video items in
+  // the kinds array land on different variants. Combined with the random
+  // image/video interleave from makeKinds(), any reasonable viewport shows
+  // a different variant per video.
+  let videoCursor = 0;
 
   for (let i = 0; i < TOTAL_ITEMS; i++) {
     const id = `item-${String(i + 1).padStart(4, '0')}`;
@@ -128,10 +140,11 @@ function generate(): MediaItem[] {
       items.push({
         kind: 'video',
         id,
-        url: VIDEO_URLS[randInt(VIDEO_URLS.length)],
+        url: VIDEO_VARIANTS[videoCursor % VIDEO_VARIANTS.length],
         posterUrl: picsumUrl(`${id}-poster`, aspectRatio),
         aspectRatio,
       });
+      videoCursor++;
     }
   }
 
