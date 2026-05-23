@@ -2,6 +2,7 @@ import { useRef } from 'react';
 import { isImage } from '@/lib/mediaItem';
 import type { MediaItem as MediaItemType } from '@/lib/mediaItem';
 import type { LayoutCell } from '@/lib/justifiedLayout';
+import { sizedMediaUrl } from '@/lib/mediaUrl';
 import { useVideoCell } from '@/hooks/useVideoPlayback';
 
 interface MediaItemProps {
@@ -22,6 +23,18 @@ export function MediaItem({ item, cell, rowY }: MediaItemProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   useVideoCell(videoRef, item.id);
 
+  // Cell size + DPR drive the requested resolution. Reading
+  // window.devicePixelRatio per render is a single property access — not
+  // worth memoizing. The helper buckets to 100px increments so the slider
+  // and ResizeObserver don't churn the HTTP cache.
+  const dpr = window.devicePixelRatio;
+  const imgSrc = isImage(item)
+    ? sizedMediaUrl(item.url, cell.width, cell.height, dpr)
+    : undefined;
+  const posterSrc = !isImage(item)
+    ? sizedMediaUrl(item.posterUrl, cell.width, cell.height, dpr)
+    : undefined;
+
   return (
     <div
       className="item"
@@ -39,7 +52,8 @@ export function MediaItem({ item, cell, rowY }: MediaItemProps) {
         // No loading="lazy": the virtualizer already gates which items mount.
         // Double-gating saves no work and adds a ~1-frame intersection-check delay
         // before cached images paint on remount.
-        <img src={item.url} alt="" />
+        // src is right-sized for the cell — see sizedMediaUrl for the rationale.
+        <img src={imgSrc} alt="" />
       ) : (
         // preload="none" + Pexels thumbnail poster. preload="metadata" looks
         // tempting (browser shows the actual first frame at #t=N as the static
@@ -54,7 +68,7 @@ export function MediaItem({ item, cell, rowY }: MediaItemProps) {
         <video
           ref={videoRef}
           src={item.url}
-          poster={item.posterUrl}
+          poster={posterSrc}
           preload="none"
           muted
           playsInline
