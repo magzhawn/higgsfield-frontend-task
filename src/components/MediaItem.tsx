@@ -36,7 +36,10 @@ export function MediaItem({ item, cell, rowY }: MediaItemProps) {
       }}
     >
       {isImage(item) ? (
-        <img src={item.url} alt="" loading="lazy" />
+        // No loading="lazy": the virtualizer already gates which items mount.
+        // Double-gating saves no work and adds a ~1-frame intersection-check delay
+        // before cached images paint on remount.
+        <img src={item.url} alt="" />
       ) : (
         // Native <video poster> + preload="none" — one DOM node, browser-managed
         // poster timing, video bytes only fetch on play(). See Decisions log
