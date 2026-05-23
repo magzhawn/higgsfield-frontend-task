@@ -4,16 +4,26 @@ import { useContainerWidth } from '@/hooks/useContainerWidth';
 import { useJustifiedLayout } from '@/hooks/useJustifiedLayout';
 import { useScrollAnchor } from '@/hooks/useScrollAnchor';
 import { VideoPlaybackProvider } from '@/hooks/useVideoPlayback';
-import type { MediaItem } from '@/lib/mediaItem';
-import { MediaRow } from './MediaRow';
+import type { MediaItem as MediaItemType } from '@/lib/mediaItem';
+import { MediaItem } from './MediaItem';
 
 interface MediaFeedProps {
-  items: ReadonlyArray<MediaItem>;
+  items: ReadonlyArray<MediaItemType>;
   columns: number;
   gap: number;
 }
 
 export function MediaFeed({ items, columns, gap }: MediaFeedProps) {
+  // Note on rendering strategy: we render MediaItems as a flat list under
+  // .feed-inner, keyed by item.id, with each item carrying its own
+  // translate(x, y). Rows are a *layout* concept (produced by
+  // useJustifiedLayout) but not a *DOM* concept. The alternative — wrapping
+  // each row in a .row div positioned via translateY — would re-key items
+  // under their row, so a layout reflow that shifts an item from row N to
+  // row M would unmount and remount its <img>, producing a brief
+  // dark-placeholder flash even though the resource is cached. Flat keying
+  // by item.id lets React's reconciliation reuse the same DOM node across
+  // layout reshuffles. See Decisions log 2026-05-23.
   const scrollRef = useRef<HTMLDivElement>(null);
   const containerWidth = useContainerWidth(scrollRef);
 
@@ -88,15 +98,19 @@ export function MediaFeed({ items, columns, gap }: MediaFeedProps) {
     <VideoPlaybackProvider scrollRef={scrollRef}>
       <div ref={scrollRef} className="feed">
         <div className="feed-inner" style={{ height: virtualizer.getTotalSize() }}>
-          {virtualizer.getVirtualItems().map((virtualRow) => {
+          {virtualizer.getVirtualItems().flatMap((virtualRow) => {
             const row = layout.rows[virtualRow.index];
-            return (
-              <MediaRow
-                key={virtualRow.key}
-                row={row}
-                items={items.slice(row.startIndex, row.endIndex)}
-              />
-            );
+            return row.items.map((cell, k) => {
+              const item = items[row.startIndex + k];
+              return (
+                <MediaItem
+                  key={item.id}
+                  item={item}
+                  cell={cell}
+                  rowY={row.y}
+                />
+              );
+            });
           })}
         </div>
       </div>

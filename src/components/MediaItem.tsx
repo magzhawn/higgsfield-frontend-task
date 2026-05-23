@@ -7,9 +7,14 @@ import { useVideoCell } from '@/hooks/useVideoPlayback';
 interface MediaItemProps {
   item: MediaItemType;
   cell: LayoutCell;
+  // Vertical offset of the containing row, in feed-inner coordinates.
+  // Combined with `cell.x` into a single 2D translate so MediaItem carries
+  // its full position. Rows aren't DOM elements — see Decisions log
+  // 2026-05-23 (flat keying) for why.
+  rowY: number;
 }
 
-export function MediaItem({ item, cell }: MediaItemProps) {
+export function MediaItem({ item, cell, rowY }: MediaItemProps) {
   // The ref attaches only to the <video> branch below; for image items it
   // stays null and useVideoCell's effect early-returns. Calling the hook
   // unconditionally keeps hook ordering stable across image/video items
@@ -27,7 +32,7 @@ export function MediaItem({ item, cell }: MediaItemProps) {
       style={{
         width: cell.width,
         height: cell.height,
-        transform: `translateX(${cell.x}px)`,
+        transform: `translate(${cell.x}px, ${rowY}px)`,
       }}
     >
       {isImage(item) ? (
