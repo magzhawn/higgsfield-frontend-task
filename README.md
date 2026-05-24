@@ -1,3 +1,7 @@
+# LOOM Recording
+
+https://www.loom.com/share/ff1e77ffe5bb40d1834c8481a21f661f
+
 # Higgsfield Media Feed
 
 A React + TypeScript justified-row media feed: ~2000 mixed images and videos, virtualized for smooth scrolling on a mid-tier laptop, with a user-adjustable column count that preserves the user's vertical position across layout changes.
