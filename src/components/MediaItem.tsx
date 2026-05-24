@@ -13,9 +13,14 @@ interface MediaItemProps {
   // its full position. Rows aren't DOM elements — see Decisions log
   // 2026-05-23 (flat keying) for why.
   rowY: number;
+  // True iff this cell's row intersects the viewport. Threaded down from
+  // MediaFeed (the only place that knows scrollOffset and viewport height
+  // without re-deriving them) so we can hint the browser to favor visible
+  // cells over the ±5-row overscan band when scheduling image fetches.
+  isVisible: boolean;
 }
 
-export function MediaItem({ item, cell, rowY }: MediaItemProps) {
+export function MediaItem({ item, cell, rowY, isVisible }: MediaItemProps) {
   // The ref attaches only to the <video> branch below; for image items it
   // stays null and useVideoCell's effect early-returns. Calling the hook
   // unconditionally keeps hook ordering stable across image/video items
@@ -53,7 +58,15 @@ export function MediaItem({ item, cell, rowY }: MediaItemProps) {
         // Double-gating saves no work and adds a ~1-frame intersection-check delay
         // before cached images paint on remount.
         // src is right-sized for the cell — see sizedMediaUrl for the rationale.
-        <img src={imgSrc} alt="" />
+        // fetchPriority hints the browser to drain its 6-per-origin connection
+        // pool on visible cells before overscan cells; without it the browser
+        // fires in DOM-insertion order and visible cells get ~11% of first-fetch
+        // slots at cols=2 (diagnostic, see Decisions log 2026-05-24).
+        <img
+          src={imgSrc}
+          alt=""
+          fetchPriority={isVisible ? 'high' : 'low'}
+        />
       ) : (
         // preload="none" + Pexels thumbnail poster. preload="metadata" looks
         // tempting (browser shows the actual first frame at #t=N as the static

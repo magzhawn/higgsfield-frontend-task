@@ -88,6 +88,25 @@ export function MediaFeed({ items, columns, gap }: MediaFeedProps) {
   // change — see useScrollAnchor for the mechanics.
   useScrollAnchor({ scrollRef, layout, items });
 
+  // Visible-row range for R4 fetch-priority annotation. The virtualizer
+  // mounts ~5 rows of overscan above + below the visible band, but the
+  // browser otherwise fires <img> requests in DOM-insertion order — at
+  // cols=2 only ~11% of first-fetch slots reach visible cells (diagnostic,
+  // see Decisions log 2026-05-24). Tagging visible cells fetchpriority=high
+  // and overscan cells low gives the browser the hint it needs to drain
+  // its 6-per-origin connection pool on visible content first. We compute
+  // this here (not per-row in MediaItem) so the read of scrollOffset /
+  // clientHeight happens once per render, not 24 times.
+  const scrollOffset = virtualizer.scrollOffset ?? 0;
+  // clientHeight is null on the very first render (ref not yet attached).
+  // Using window.innerHeight as a fallback isn't exact (the slider eats some
+  // pixels above .feed), but on first render the user hasn't scrolled, so
+  // the top of the feed is what's visible and the overscan-above bucket is
+  // empty — being slightly off on the bottom edge is a non-issue. Subsequent
+  // renders read the real clientHeight.
+  const viewportHeight =
+    scrollRef.current?.clientHeight ?? window.innerHeight;
+
   // Provider wraps the whole feed (including the scroll element it controls)
   // rather than just .feed-inner. Both placements work for context delivery,
   // but wrapping outside reads as "the entire feed is under playback control"
@@ -100,6 +119,13 @@ export function MediaFeed({ items, columns, gap }: MediaFeedProps) {
         <div className="feed-inner" style={{ height: virtualizer.getTotalSize() }}>
           {virtualizer.getVirtualItems().flatMap((virtualRow) => {
             const row = layout.rows[virtualRow.index];
+            // Row intersects viewport iff its [y, y+height) overlaps
+            // [scrollOffset, scrollOffset+viewportHeight). A row half-clipped
+            // by the top or bottom edge still counts as visible — the user
+            // sees a portion of it.
+            const isVisible =
+              row.y + row.height > scrollOffset &&
+              row.y < scrollOffset + viewportHeight;
             return row.items.map((cell, k) => {
               const item = items[row.startIndex + k];
               return (
@@ -108,6 +134,7 @@ export function MediaFeed({ items, columns, gap }: MediaFeedProps) {
                   item={item}
                   cell={cell}
                   rowY={row.y}
+                  isVisible={isVisible}
                 />
               );
             });
